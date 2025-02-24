@@ -4,7 +4,7 @@ const path = require('path');
 
 let mainWindow;
 let marqueeWindow;
-const dataFile = path.join(app.getPath('userData'), 'data.json'); // Путь к файлу данных
+const dataFile = path.join(__dirname, 'data.json'); // Путь к data.json в папке проекта
 
 function createMainWindow() {
     mainWindow = new BrowserWindow({
