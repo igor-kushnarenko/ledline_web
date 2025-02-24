@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Управление бегущей строкой</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #333;
+            color: #fff;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #linesList {
+            background: #444;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        .line-item {
+            padding: 10px;
+            cursor: pointer;
+        }
+        .line-item:hover {
+            background: #555;
+        }
+        .selected {
+            background: #666;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background: #444;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #555;
+            color: #fff;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #666;
+        }
+        /* Стили для модальных окон */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #444;
+            margin: 15% auto;
+            padding: 20px;
+            width: 300px;
+            border-radius: 4px;
+            border: 1px solid #555;
+        }
+        #newLineInput, #editLineInput {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #333;
+            color: #fff;
+        }
+        #submitNewLine, #saveEditLine, #cancelNewLine, #cancelEditLine {
+            padding: 8px 16px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Управление бегущей строкой</h1>
+        </div>
+        <div id="linesList"></div>
+        <div class="controls">
+            <button onclick="showAddModal()">Добавить</button>
+            <button onclick="showEditModal()">Редактировать</button>
+            <button onclick="deleteLine()">Удалить</button>
+            <button onclick="moveUp()">Вверх</button>
+            <button onclick="moveDown()">Вниз</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно для добавления строки -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <h2>Добавить новую строку</h2>
+            <input type="text" id="newLineInput" placeholder="Введите текст строки">
+            <button id="submitNewLine" onclick="submitNewLine()">Отправить</button>
+            <button id="cancelNewLine" onclick="hideAddModal()">Отмена</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно для редактирования строки -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h2>Редактировать строку</h2>
+            <input type="text" id="editLineInput" placeholder="Введите новый текст">
+            <button id="saveEditLine" onclick="saveEditLine()">Сохранить</button>
+            <button id="cancelEditLine" onclick="hideEditModal()">Отмена</button>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        let lines = []; // Массив строк
+        let selectedIndex = -1; // Индекс выбранной строки
+
+        // Загрузка данных при старте
+        ipcRenderer.on('load-data', (event, savedLines) => {
+            lines = savedLines || [];
+            updateLines();
+        });
+
+        // Обновление списка строк
+        function updateLines() {
+            const list = document.getElementById('linesList');
+            list.innerHTML = '';
+            lines.forEach((line, index) => {
+                const div = document.createElement('div');
+                div.className = 'line-item' + (selectedIndex === index ? ' selected' : '');
+                div.innerHTML = `<span>${line.text}</span>`;
+                div.onclick = () => selectLine(index);
+                list.appendChild(div);
+            });
+            ipcRenderer.send('update-marquee', lines);
+        }
+
+        // Выбор строки
+        function selectLine(index) {
+            selectedIndex = index;
+            updateLines();
+        }
+
+        // Показать модальное окно для добавления
+        function showAddModal() {
+            document.getElementById('addModal').style.display = 'block';
+            document.getElementById('newLineInput').focus();
+        }
+
+        // Скрыть модальное окно добавления
+        function hideAddModal() {
+            document.getElementById('addModal').style.display = 'none';
+            document.getElementById('newLineInput').value = '';
+        }
+
+        // Сохранение новой строки
+        function submitNewLine() {
+            const text = document.getElementById('newLineInput').value.trim();
+            if (text) {
+                lines.push({ text: text, settings: { color: '#ff0000' } });
+                updateLines();
+                hideAddModal();
+            }
+        }
+
+        // Показать модальное окно для редактирования
+        function showEditModal() {
+            if (selectedIndex >= 0) {
+                document.getElementById('editModal').style.display = 'block';
+                document.getElementById('editLineInput').value = lines[selectedIndex].text;
+                document.getElementById('editLineInput').focus();
+            } else {
+                alert('Выберите строку для редактирования');
+            }
+        }
+
+        // Скрыть модальное окно редактирования
+        function hideEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+            document.getElementById('editLineInput').value = '';
+        }
+
+        // Сохранение отредактированной строки
+        function saveEditLine() {
+            if (selectedIndex >= 0) {
+                const newText = document.getElementById('editLineInput').value.trim();
+                if (newText) {
+                    lines[selectedIndex].text = newText;
+                    updateLines();
+                    hideEditModal();
+                }
+            }
+        }
+
+        // Удаление строки
+        function deleteLine() {
+            if (selectedIndex >= 0) {
+                lines.splice(selectedIndex, 1);
+                selectedIndex = -1; // Сбрасываем выбор
+                updateLines();
+            } else {
+                alert('Выберите строку для удаления');
+            }
+        }
+
+        // Перемещение строки вверх
+        function moveUp() {
+            if (selectedIndex > 0) {
+                [lines[selectedIndex], lines[selectedIndex - 1]] =
+                [lines[selectedIndex - 1], lines[selectedIndex]];
+                selectedIndex--;
+                updateLines();
+            }
+        }
+
+        // Перемещение строки вниз
+        function moveDown() {
+            if (selectedIndex >= 0 && selectedIndex < lines.length - 1) {
+                [lines[selectedIndex], lines[selectedIndex + 1]] =
+                [lines[selectedIndex + 1], lines[selectedIndex]];
+                selectedIndex++;
+                updateLines();
+            }
+        }
+    </script>
+</body>
+</html>

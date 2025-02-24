@@ -1,0 +1,14 @@
+{
+  "name": "ledline2-web",
+  "version": "1.0.0",
+  "description": "Бегущая строка на Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "ВашеИмя",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}
