@@ -55,12 +55,34 @@ function loadData() {
     try {
         if (fs.existsSync(dataFile)) {
             const data = fs.readFileSync(dataFile, 'utf8');
-            return JSON.parse(data);
+            const parsedData = JSON.parse(data);
+            // Проверяем, чтобы структура данных была корректной
+            return {
+                lines: Array.isArray(parsedData.lines) ? parsedData.lines : [],
+                settings: {
+                    backgroundColor: typeof parsedData.settings?.backgroundColor === 'string' ? parsedData.settings.backgroundColor : '#000',
+                    textColor: typeof parsedData.settings?.textColor === 'string' ? parsedData.settings.textColor : '#fff'
+                }
+            };
         }
-        return [];
+        // Если файла нет, возвращаем дефолтные значения
+        return {
+            lines: [],
+            settings: {
+                backgroundColor: '#000',
+                textColor: '#fff'
+            }
+        };
     } catch (err) {
         console.error('Ошибка загрузки данных:', err);
-        return [];
+        // В случае ошибки возвращаем дефолтные значения
+        return {
+            lines: [],
+            settings: {
+                backgroundColor: '#000',
+                textColor: '#fff'
+            }
+        };
     }
 }
 
@@ -77,11 +99,15 @@ app.whenReady().then(() => {
     createMainWindow();
     createMarqueeWindow();
 
-    // Отправляем сохранённые данные в главное окно при запуске
-    const savedData = loadData();
+    // Отправляем сохранённые данные в главное окно и настройки в окно бегущей строки при запуске
+    const { lines, settings } = loadData();
     mainWindow.webContents.on('did-finish-load', () => {
-        mainWindow.webContents.send('load-data', savedData);
+        mainWindow.webContents.send('load-data', { lines, settings });
     });
+    // Отправляем настройки в окно бегущей строки сразу после создания
+    if (marqueeWindow && !marqueeWindow.isDestroyed()) {
+        marqueeWindow.webContents.send('update-settings', settings);
+    }
 });
 
 // Обработка обновления списка строк
@@ -89,7 +115,28 @@ ipcMain.on('update-marquee', (event, data) => {
     if (marqueeWindow && !marqueeWindow.isDestroyed()) {
         marqueeWindow.webContents.send('update-marquee', data);
     }
-    saveData(data); // Сохраняем данные при каждом изменении
+    // Загружаем текущие данные, обновляем только lines, сохраняя settings
+    const currentData = loadData();
+    saveData({
+        lines: Array.isArray(data) ? data : currentData.lines,
+        settings: currentData.settings
+    });
+});
+
+// Обработка обновления настроек
+ipcMain.on('update-settings', (event, newSettings) => {
+    if (marqueeWindow && !marqueeWindow.isDestroyed()) {
+        marqueeWindow.webContents.send('update-settings', newSettings);
+    }
+    // Загружаем текущие данные, обновляем только settings, сохраняя lines
+    const currentData = loadData();
+    saveData({
+        lines: currentData.lines,
+        settings: {
+            backgroundColor: typeof newSettings.backgroundColor === 'string' ? newSettings.backgroundColor : currentData.settings.backgroundColor,
+            textColor: typeof newSettings.textColor === 'string' ? newSettings.textColor : currentData.settings.textColor
+        }
+    });
 });
 
 app.on('window-all-closed', () => {

@@ -34,12 +34,23 @@
     <script>
         const { ipcRenderer } = require('electron');
 
-        // Обработчик обновления текста
+        // Обработчик обновления текста и настроек
         ipcRenderer.on('update-marquee', (event, lines) => {
             const marqueeText = document.getElementById('marqueeText');
             marqueeText.innerText = lines.map(line => line.text).join('   |   ');
-            marqueeText.style.color = lines.length > 0 ? lines[0].settings.color : '#fff';
+            updateStyle({ textColor: lines.length > 0 ? lines[0].settings.color : '#fff' });
         });
+
+        ipcRenderer.on('update-settings', (event, settings) => {
+            updateStyle(settings);
+        });
+
+        function updateStyle(settings) {
+            const marqueeText = document.getElementById('marqueeText');
+            const body = document.body;
+            body.style.backgroundColor = settings.backgroundColor || '#000';
+            marqueeText.style.color = settings.textColor || '#fff';
+        }
     </script>
 </body>
 </html>

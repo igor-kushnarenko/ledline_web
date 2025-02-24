@@ -19,7 +19,30 @@
             text-align: center;
             margin-bottom: 20px;
         }
-        #linesList {
+        .tabs {
+            overflow: hidden;
+            border-bottom: 1px solid #555;
+            margin-bottom: 20px;
+        }
+        .tab-button {
+            background: #444;
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin-right: 5px;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab-button.active {
+            background: #555;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        #linesList, #settingsContent {
             background: #444;
             border: 1px solid #555;
             border-radius: 4px;
@@ -89,6 +112,22 @@
             padding: 8px 16px;
             margin-right: 10px;
         }
+        /* Стили для настроек */
+        .settings-group {
+            margin-bottom: 15px;
+        }
+        .settings-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .settings-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #333;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -96,13 +135,29 @@
         <div class="header">
             <h1>Управление бегущей строкой</h1>
         </div>
-        <div id="linesList"></div>
-        <div class="controls">
-            <button onclick="showAddModal()">Добавить</button>
-            <button onclick="showEditModal()">Редактировать</button>
-            <button onclick="deleteLine()">Удалить</button>
-            <button onclick="moveUp()">Вверх</button>
-            <button onclick="moveDown()">Вниз</button>
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('lines')">Строки</button>
+            <button class="tab-button" onclick="showTab('settings')">Настройки</button>
+        </div>
+        <div id="linesContent" class="tab-content active">
+            <div id="linesList"></div>
+            <div class="controls">
+                <button onclick="showAddModal()">Добавить</button>
+                <button onclick="showEditModal()">Редактировать</button>
+                <button onclick="deleteLine()">Удалить</button>
+                <button onclick="moveUp()">Вверх</button>
+                <button onclick="moveDown()">Вниз</button>
+            </div>
+        </div>
+        <div id="settingsContent" class="tab-content">
+            <div class="settings-group">
+                <label for="backgroundColor">Цвет фона:</label>
+                <input type="color" id="backgroundColor" value="#000000" onchange="updateSettings()">
+            </div>
+            <div class="settings-group">
+                <label for="textColor">Цвет текста:</label>
+                <input type="color" id="textColor" value="#ffffff" onchange="updateSettings()">
+            </div>
         </div>
     </div>
 
@@ -130,11 +185,19 @@
         const { ipcRenderer } = require('electron');
         let lines = []; // Массив строк
         let selectedIndex = -1; // Индекс выбранной строки
+        let settings = {
+            backgroundColor: '#000',
+            textColor: '#fff'
+        };
 
         // Загрузка данных при старте
-        ipcRenderer.on('load-data', (event, savedLines) => {
-            lines = savedLines || [];
+        ipcRenderer.on('load-data', (event, data) => {
+            lines = data.lines || [];
+            settings = data.settings || settings;
             updateLines();
+            applySettings(settings);
+            // Отправляем настройки в окно бегущей строки при загрузке
+            ipcRenderer.send('update-settings', settings);
         });
 
         // Обновление списка строк
@@ -157,6 +220,20 @@
             updateLines();
         }
 
+        // Показать вкладку
+        function showTab(tabName) {
+            const tabs = document.getElementsByClassName('tab-button');
+            for (let tab of tabs) {
+                tab.classList.remove('active');
+            }
+            const contents = document.getElementsByClassName('tab-content');
+            for (let content of contents) {
+                content.classList.remove('active');
+            }
+            document.querySelector(`.tab-button[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`${tabName}Content`).classList.add('active');
+        }
+
         // Показать модальное окно для добавления
         function showAddModal() {
             document.getElementById('addModal').style.display = 'block';
@@ -173,7 +250,8 @@
         function submitNewLine() {
             const text = document.getElementById('newLineInput').value.trim();
             if (text) {
-                lines.push({ text: text, settings: { color: '#ff0000' } });
+                // Берем текущий цвет текста из настроек, а не фиксированный #ff0000
+                lines.push({ text: text, settings: { color: settings.textColor } });
                 updateLines();
                 hideAddModal();
             }
@@ -202,6 +280,8 @@
                 const newText = document.getElementById('editLineInput').value.trim();
                 if (newText) {
                     lines[selectedIndex].text = newText;
+                    // Сохраняем текущий цвет текста из настроек
+                    lines[selectedIndex].settings.color = settings.textColor;
                     updateLines();
                     hideEditModal();
                 }
@@ -237,6 +317,23 @@
                 selectedIndex++;
                 updateLines();
             }
+        }
+
+        // Обновление настроек
+        function updateSettings() {
+            settings.backgroundColor = document.getElementById('backgroundColor').value;
+            settings.textColor = document.getElementById('textColor').value;
+            applySettings(settings);
+            ipcRenderer.send('update-settings', settings);
+            // Обновляем цвет текста всех строк
+            lines.forEach(line => line.settings.color = settings.textColor);
+            updateLines();
+        }
+
+        // Применение настроек в интерфейсе
+        function applySettings(settings) {
+            document.getElementById('backgroundColor').value = settings.backgroundColor;
+            document.getElementById('textColor').value = settings.textColor;
         }
     </script>
 </body>
