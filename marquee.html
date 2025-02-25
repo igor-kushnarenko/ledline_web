@@ -7,6 +7,7 @@
         body {
             margin: 0;
             overflow: hidden;
+            background: #000; /* Дефолтный чёрный фон для видимости */
         }
         .drag-area {
             position: absolute;
@@ -19,7 +20,7 @@
         }
         .marquee {
             white-space: nowrap;
-            animation: marquee 10s linear infinite;
+            animation: marquee linear infinite;
             padding: 30px 10px 10px 10px;
         }
         @keyframes marquee {
@@ -34,22 +35,69 @@
     <script>
         const { ipcRenderer } = require('electron');
 
+        // Флаг для отслеживания первой загрузки
+        let isFirstLoad = true;
+
         // Обработчик обновления текста и настроек
         ipcRenderer.on('update-marquee', (event, lines) => {
             const marqueeText = document.getElementById('marqueeText');
+            if (!marqueeText) {
+                console.error('Элемент marqueeText не найден');
+                return;
+            }
             marqueeText.innerText = lines.map(line => line.text).join('   |   ');
-            updateStyle({ textColor: lines.length > 0 ? lines[0].settings.color : '#fff' });
+            updateStyle(lines[0]?.settings || {
+                color: '#fff',
+                fontFamily: 'Arial, sans-serif',
+                fontSize: 24
+            });
         });
 
         ipcRenderer.on('update-settings', (event, settings) => {
             updateStyle(settings);
         });
 
+        // Функция для запроса настроек при полной загрузке окна
+        window.addEventListener('load', () => {
+            ipcRenderer.send('request-settings'); // Запрос настроек
+        });
+
+        ipcRenderer.on('send-settings', (event, settings) => {
+            updateStyle(settings);
+        });
+
         function updateStyle(settings) {
             const marqueeText = document.getElementById('marqueeText');
             const body = document.body;
+            if (!marqueeText || !body) {
+                console.error('DOM элементы не найдены');
+                return;
+            }
+
+            // Применяем настройки
             body.style.backgroundColor = settings.backgroundColor || '#000';
             marqueeText.style.color = settings.textColor || '#fff';
+            marqueeText.style.fontFamily = settings.fontFamily || 'Arial, sans-serif';
+            marqueeText.style.fontSize = `${settings.fontSize || 24}px`;
+            const newSpeed = `${settings.scrollSpeed || 10}s`;
+            marqueeText.style.animationDuration = newSpeed;
+
+            // Перезапускаем анимацию только при изменении настроек
+            if (!isFirstLoad) {
+                marqueeText.style.animation = 'none';
+                setTimeout(() => {
+                    marqueeText.style.animation = `marquee ${newSpeed} linear infinite`;
+                }, 0);
+            } else {
+                isFirstLoad = false; // Устанавливаем флаг после первой загрузки
+                marqueeText.style.animation = `marquee ${newSpeed} linear infinite`;
+            }
+
+            if (!settings.backgroundColor || !settings.textColor) {
+                console.warn('Отсутствуют некоторые настройки, применяем дефолтные значения');
+                body.style.backgroundColor = '#000';
+                marqueeText.style.color = '#fff';
+            }
         }
     </script>
 </body>

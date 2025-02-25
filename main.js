@@ -45,6 +45,16 @@ function createMarqueeWindow() {
         }
     });
     marqueeWindow.loadFile('marquee.html');
+
+    // Отправляем настройки после полной загрузки окна
+    marqueeWindow.webContents.on('did-finish-load', () => {
+        console.log('Окно бегущей строки загружено, отправляем настройки');
+        const { settings } = loadData();
+        if (marqueeWindow && !marqueeWindow.isDestroyed()) {
+            marqueeWindow.webContents.send('update-settings', settings);
+        }
+    });
+
     marqueeWindow.on('closed', () => {
         marqueeWindow = null;
     });
@@ -61,7 +71,10 @@ function loadData() {
                 lines: Array.isArray(parsedData.lines) ? parsedData.lines : [],
                 settings: {
                     backgroundColor: typeof parsedData.settings?.backgroundColor === 'string' ? parsedData.settings.backgroundColor : '#000',
-                    textColor: typeof parsedData.settings?.textColor === 'string' ? parsedData.settings.textColor : '#fff'
+                    textColor: typeof parsedData.settings?.textColor === 'string' ? parsedData.settings.textColor : '#fff',
+                    fontFamily: typeof parsedData.settings?.fontFamily === 'string' ? parsedData.settings.fontFamily : 'Arial, sans-serif',
+                    fontSize: typeof parsedData.settings?.fontSize === 'number' ? parsedData.settings.fontSize : 24,
+                    scrollSpeed: typeof parsedData.settings?.scrollSpeed === 'number' ? parsedData.settings.scrollSpeed : 10
                 }
             };
         }
@@ -70,7 +83,10 @@ function loadData() {
             lines: [],
             settings: {
                 backgroundColor: '#000',
-                textColor: '#fff'
+                textColor: '#fff',
+                fontFamily: 'Arial, sans-serif',
+                fontSize: 24,
+                scrollSpeed: 10
             }
         };
     } catch (err) {
@@ -80,7 +96,10 @@ function loadData() {
             lines: [],
             settings: {
                 backgroundColor: '#000',
-                textColor: '#fff'
+                textColor: '#fff',
+                fontFamily: 'Arial, sans-serif',
+                fontSize: 24,
+                scrollSpeed: 10
             }
         };
     }
@@ -99,15 +118,11 @@ app.whenReady().then(() => {
     createMainWindow();
     createMarqueeWindow();
 
-    // Отправляем сохранённые данные в главное окно и настройки в окно бегущей строки при запуске
+    // Отправляем сохранённые данные в главное окно при запуске
     const { lines, settings } = loadData();
     mainWindow.webContents.on('did-finish-load', () => {
         mainWindow.webContents.send('load-data', { lines, settings });
     });
-    // Отправляем настройки в окно бегущей строки сразу после создания
-    if (marqueeWindow && !marqueeWindow.isDestroyed()) {
-        marqueeWindow.webContents.send('update-settings', settings);
-    }
 });
 
 // Обработка обновления списка строк
@@ -124,7 +139,8 @@ ipcMain.on('update-marquee', (event, data) => {
 });
 
 // Обработка обновления настроек
-ipcMain.on('update-settings', (event, newSettings) => {
+ipcMain.on('apply-settings', (event, newSettings) => {
+    console.log('Получены настройки для применения:', newSettings);
     if (marqueeWindow && !marqueeWindow.isDestroyed()) {
         marqueeWindow.webContents.send('update-settings', newSettings);
     }
@@ -134,9 +150,19 @@ ipcMain.on('update-settings', (event, newSettings) => {
         lines: currentData.lines,
         settings: {
             backgroundColor: typeof newSettings.backgroundColor === 'string' ? newSettings.backgroundColor : currentData.settings.backgroundColor,
-            textColor: typeof newSettings.textColor === 'string' ? newSettings.textColor : currentData.settings.textColor
+            textColor: typeof newSettings.textColor === 'string' ? newSettings.textColor : currentData.settings.textColor,
+            fontFamily: typeof newSettings.fontFamily === 'string' ? newSettings.fontFamily : currentData.settings.fontFamily,
+            fontSize: typeof newSettings.fontSize === 'number' ? newSettings.fontSize : currentData.settings.fontSize,
+            scrollSpeed: typeof newSettings.scrollSpeed === 'number' ? newSettings.scrollSpeed : currentData.settings.scrollSpeed
         }
     });
+});
+
+// Обработка запроса настроек
+ipcMain.on('request-settings', (event) => {
+    const { settings } = loadData();
+    console.log('Запрос настроек, отправляем:', settings);
+    event.sender.send('send-settings', settings);
 });
 
 app.on('window-all-closed', () => {

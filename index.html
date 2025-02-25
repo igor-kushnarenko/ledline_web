@@ -120,13 +120,17 @@
             display: block;
             margin-bottom: 5px;
         }
-        .settings-group input {
+        .settings-group input, .settings-group select {
             width: 100%;
             padding: 8px;
             border: 1px solid #555;
             border-radius: 4px;
             background: #333;
             color: #fff;
+        }
+        #applyChanges {
+            margin-top: 10px;
+            width: 100%;
         }
     </style>
 </head>
@@ -152,12 +156,30 @@
         <div id="settingsContent" class="tab-content">
             <div class="settings-group">
                 <label for="backgroundColor">Цвет фона:</label>
-                <input type="color" id="backgroundColor" value="#000000" onchange="updateSettings()">
+                <input type="color" id="backgroundColor" value="#000000" onchange="updateTempSettings()">
             </div>
             <div class="settings-group">
                 <label for="textColor">Цвет текста:</label>
-                <input type="color" id="textColor" value="#ffffff" onchange="updateSettings()">
+                <input type="color" id="textColor" value="#ffffff" onchange="updateTempSettings()">
             </div>
+            <div class="settings-group">
+                <label for="fontFamily">Шрифт:</label>
+                <select id="fontFamily" onchange="updateTempSettings()">
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="'Courier New', monospace">Courier New</option>
+                    <option value="'Verdana', sans-serif">Verdana</option>
+                </select>
+            </div>
+            <div class="settings-group">
+                <label for="fontSize">Размер шрифта (px):</label>
+                <input type="number" id="fontSize" min="10" max="50" value="24" onchange="updateTempSettings()">
+            </div>
+            <div class="settings-group">
+                <label for="scrollSpeed">Скорость прокрутки (секунд):</label>
+                <input type="number" id="scrollSpeed" min="1" max="30" value="10" onchange="updateTempSettings()">
+            </div>
+            <button id="applyChanges" onclick="applySettings()">Применить изменения</button>
         </div>
     </div>
 
@@ -187,17 +209,20 @@
         let selectedIndex = -1; // Индекс выбранной строки
         let settings = {
             backgroundColor: '#000',
-            textColor: '#fff'
+            textColor: '#fff',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: 24,
+            scrollSpeed: 10
         };
+        let tempSettings = { ...settings }; // Временные настройки для редактирования
 
         // Загрузка данных при старте
         ipcRenderer.on('load-data', (event, data) => {
             lines = data.lines || [];
             settings = data.settings || settings;
+            tempSettings = { ...settings }; // Синхронизируем временные настройки с сохранёнными
             updateLines();
-            applySettings(settings);
-            // Отправляем настройки в окно бегущей строки при загрузке
-            ipcRenderer.send('update-settings', settings);
+            applySettings(settings); // Применяем сохранённые настройки
         });
 
         // Обновление списка строк
@@ -250,8 +275,15 @@
         function submitNewLine() {
             const text = document.getElementById('newLineInput').value.trim();
             if (text) {
-                // Берем текущий цвет текста из настроек, а не фиксированный #ff0000
-                lines.push({ text: text, settings: { color: settings.textColor } });
+                // Берем текущие настройки для новой строки
+                lines.push({
+                    text: text,
+                    settings: {
+                        color: settings.textColor,
+                        fontFamily: settings.fontFamily,
+                        fontSize: settings.fontSize
+                    }
+                });
                 updateLines();
                 hideAddModal();
             }
@@ -280,8 +312,10 @@
                 const newText = document.getElementById('editLineInput').value.trim();
                 if (newText) {
                     lines[selectedIndex].text = newText;
-                    // Сохраняем текущий цвет текста из настроек
+                    // Обновляем настройки строки, чтобы они соответствовали текущим настройкам
                     lines[selectedIndex].settings.color = settings.textColor;
+                    lines[selectedIndex].settings.fontFamily = settings.fontFamily;
+                    lines[selectedIndex].settings.fontSize = settings.fontSize;
                     updateLines();
                     hideEditModal();
                 }
@@ -319,21 +353,31 @@
             }
         }
 
-        // Обновление настроек
-        function updateSettings() {
-            settings.backgroundColor = document.getElementById('backgroundColor').value;
-            settings.textColor = document.getElementById('textColor').value;
-            applySettings(settings);
-            ipcRenderer.send('update-settings', settings);
-            // Обновляем цвет текста всех строк
-            lines.forEach(line => line.settings.color = settings.textColor);
-            updateLines();
+        // Обновление временных настроек (без сохранения)
+        function updateTempSettings() {
+            tempSettings.backgroundColor = document.getElementById('backgroundColor').value;
+            tempSettings.textColor = document.getElementById('textColor').value;
+            tempSettings.fontFamily = document.getElementById('fontFamily').value;
+            tempSettings.fontSize = parseInt(document.getElementById('fontSize').value) || 24;
+            tempSettings.scrollSpeed = parseInt(document.getElementById('scrollSpeed').value) || 10;
+            console.log('Временные настройки обновлены:', tempSettings);
+        }
+
+        // Применение и сохранение настроек
+        function applySettings() {
+            settings = { ...tempSettings }; // Копируем временные настройки в постоянные
+            applySettingsToUI(settings); // Применяем к интерфейсу
+            ipcRenderer.send('apply-settings', settings); // Отправляем настройки для сохранения и применения
+            console.log('Настройки применены и отправлены:', settings);
         }
 
         // Применение настроек в интерфейсе
-        function applySettings(settings) {
+        function applySettingsToUI(settings) {
             document.getElementById('backgroundColor').value = settings.backgroundColor;
             document.getElementById('textColor').value = settings.textColor;
+            document.getElementById('fontFamily').value = settings.fontFamily;
+            document.getElementById('fontSize').value = settings.fontSize;
+            document.getElementById('scrollSpeed').value = settings.scrollSpeed;
         }
     </script>
 </body>
